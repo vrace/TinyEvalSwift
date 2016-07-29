@@ -16,60 +16,73 @@ class ViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         evaluator = TEEvaluator()
-        
-        evaluator.define("print", lambda: printObject)
-        evaluator.define("options", lambda: options)
-        evaluator.define("candidate", lambda: candidate)
-        
-        valueTextField.text = "haha"
-        expressionTextField.text = "(options $0 OVERAGE SHORTAGE EVEN_EXCHANGE)"
+        evaluator.define("equal", lambda: equal)
+        evaluator.define("or", lambda: or)
+        evaluator.define("not", lambda: not)
     }
     
-    private func printObject(evaluator: TEEvaluator, operands: [TEObject]) -> TEObject {
-        operands.forEach {
-            print($0)
+    func equal(evaluator: TEEvaluator, operands: [TEObject]) -> TEObject {
+        if operands.count == 1 {
+            let compareTo = operands[0].rawString
+            return .Lambda({ (e, args) -> TEObject in
+                if args.count == 1 {
+                    return args[0].rawString == compareTo ? TEObject.trueObject : TEObject.falseObject
+                }
+                
+                e.error = "equal: invalid operand"
+                return .Null
+            })
         }
         
+        evaluator.error = "equal: invalid operand"
         return .Null
     }
     
-    private func options(evaluator: TEEvaluator, operands: [TEObject]) -> TEObject {
-        if !operands.isEmpty {
-            if case .RawString(let value) = operands[0] {
-                for candidate in operands[1 ..< operands.count] {
-                    if case .RawString(let c) = candidate where c == value {
-                        return .RawString("#true")
-                    }
-                }
-                
-                return .RawString("\(value) is not in the option list.")
-            }
-        }
-        
-        return .RawString("Invalid args")
-    }
-    
-    private func candidate(evaluator: TEEvaluator, operands: [TEObject]) -> TEObject {
-        var candidates: [String] = []
+    func or(evaluator: TEEvaluator, operands: [TEObject]) -> TEObject {
+        var functions: [TEObject.LambdaFunc] = []
         
         for op in operands {
-            if case .RawString(let c) = op {
-                candidates.append(c)
+            if let f = op.lambda {
+                functions.append(f)
+            }
+            else {
+                evaluator.error = "or: requires lambda"
+                return .Null
             }
         }
         
-        return .Lambda({ (evaluator, operands) -> TEObject in
-            if !operands.isEmpty {
-                if case .RawString(let value) = operands[0] {
-                    if candidates.contains(value) {
-                        return .RawString("#true")
+        return .Lambda({ (e, args) -> TEObject in
+            for f in functions {
+                if let compareResult = f(evaluator: e, operands: args).boolean {
+                    if compareResult {
+                        return TEObject.trueObject
                     }
-                    
-                    return .RawString("\(value) is not in the candidate list")
+                }
+                else {
+                    break
                 }
             }
             
-            return .RawString("Invalid args")
+            return TEObject.falseObject
         })
+    }
+    
+    func not(evaluator: TEEvaluator, operands: [TEObject]) -> TEObject {
+        if operands.count == 1 {
+            if let f = operands[0].lambda {
+                return .Lambda({ (e, args) -> TEObject in
+                    if let result = f(evaluator: e, operands: args).boolean {
+                        return TEObject.booleanObject(!result)
+                    }
+                    else {
+                        e.error = "not: invalid operand"
+                        return .Null
+                    }
+                })
+            }
+        }
+        
+        evaluator.error = "not: invalid operands"
+        return .Null
     }
 }

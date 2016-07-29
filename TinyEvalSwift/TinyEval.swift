@@ -1,9 +1,52 @@
 import Foundation
 
 enum TEObject {
+    typealias LambdaFunc = (evaluator: TEEvaluator, operands: [TEObject]) -> TEObject
+    
     case Null
-    case Lambda((evaluator: TEEvaluator, operands: [TEObject]) -> TEObject)
+    case Lambda(LambdaFunc)
     case RawString(String)
+    
+    var rawString: String? {
+        if case .RawString(let str) = self {
+            return str
+        }
+        
+        return nil
+    }
+    
+    var boolean: Bool? {
+        let str = rawString
+        
+        if str == "#true" {
+            return true
+        }
+        else if str == "#false" {
+            return false
+        }
+        
+        return nil
+    }
+    
+    var lambda: LambdaFunc? {
+        if case .Lambda(let f) = self {
+            return f
+        }
+        
+        return nil
+    }
+    
+    static var trueObject: TEObject {
+        return .RawString("#true")
+    }
+    
+    static var falseObject: TEObject {
+        return .RawString("#false")
+    }
+    
+    static func booleanObject(value: Bool) -> TEObject {
+        return value ? trueObject : falseObject
+    }
 }
 
 class TETokenizer {
@@ -69,38 +112,47 @@ class TEEvaluator {
         return eval(TETokenizer(expression: expression))
     }
     
+    enum StackObject {
+        case FunctionCall
+        case Argument(TEObject)
+    }
+    
     private func eval(tokenizer: TETokenizer) -> TEObject {
-        var result: TEObject = .Null
+        var stack: [StackObject] = []
         
-        if let token = tokenizer.token {
-            if token == "(" {
+        while (error == nil && tokenizer.token != nil) {
+            if tokenizer.token == "(" {
+                stack.append(.FunctionCall)
+            }
+            else if tokenizer.token == ")" {
                 var args: [TEObject] = []
-                
-                tokenizer.next()
-                
-                while error == nil && tokenizer.token != nil && tokenizer.token != ")" {
-                    args.append(eval(tokenizer))
-                }
-                
-                if tokenizer.token != ")" {
-                    if error == nil {
-                        error = "unexpected end of expression"
+                while (!stack.isEmpty) {
+                    if case .Argument(let arg) = stack.removeLast() {
+                        args.append(arg)
                     }
-                }
-                else {
-                    if error == nil && !args.isEmpty {
-                        result = apply(args)
+                    else {
+                        stack.append(.Argument(apply(Array(args.reverse()))))
+                        break
                     }
                 }
             }
             else {
-                result = apply(token)
+                stack.append(.Argument(apply(tokenizer.token!)))
+            }
+            
+            tokenizer.next()
+        }
+        
+        if !stack.isEmpty {
+            if case .Argument(let result) = stack[0] {
+                return result
+            }
+            else {
+                error = "unexpected evaluation result"
             }
         }
         
-        tokenizer.next()
-        
-        return result
+        return .Null
     }
     
     private func apply(exp: String) -> TEObject {
