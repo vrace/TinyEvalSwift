@@ -19,6 +19,9 @@ class ViewController: UIViewController {
         evaluator.define("equal", lambda: equal)
         evaluator.define("or", lambda: or)
         evaluator.define("not", lambda: not)
+        
+        valueTextField.text = "haha"
+        expressionTextField.text = "((or (equal A) (equal B) (equal C)) $0)"
     }
     
     func equal(evaluator: TEEvaluator, operands: [TEObject]) -> TEObject {
