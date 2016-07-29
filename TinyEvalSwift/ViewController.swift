@@ -19,6 +19,7 @@ class ViewController: UIViewController {
         evaluator.define("equal", lambda: equal)
         evaluator.define("or", lambda: or)
         evaluator.define("not", lambda: not)
+        evaluator.define("candidate", symbol: evaluator.eval("(or (equal OVERAGE) (equal SHORTAGE))"))
         
         valueTextField.text = "haha"
         expressionTextField.text = "((or (equal A) (equal B) (equal C)) $0)"
